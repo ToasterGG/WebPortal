@@ -3,51 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Mirror Core</title>
+    <title>Universal Web Template</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #111; }
-        #nav-bar { width: 100%; background-color: #222; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #333; }
-        #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #444; border-radius: 6px; font-size: 14px; background-color: #1a1a1a; color: #fff; outline: none; }
+        body, html { width: 100%; height: 100%; font-family: -apple-system, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #1c1c1f; }
+        #nav-bar { width: 100%; background-color: #2b2b30; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #3a3a42; }
+        #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #444; border-radius: 6px; font-size: 14px; background-color: #121214; color: #fff; outline: none; }
         #url-input:focus { border-color: #007acc; }
         #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
         #go-btn:hover { background-color: #005999; }
-        #viewer-frame { width: 100%; flex-grow: 1; border: none; background-color: #fff; }
+        #viewer-frame { width: 100%; flex-grow: 1; border: none; background-color: white; }
     </style>
 </head>
 <body>
 
     <div id="nav-bar">
-        <input type="text" id="url-input" placeholder="Enter full URL or search keyword..." value="duckduckgo.com">
-        <button id="go-btn" onclick="executeRoute()">Connect</button>
+        <input type="text" id="url-input" placeholder="Type a search query or full URL (e.g., wikipedia.org)..." value="wikipedia.org">
+        <button id="go-btn" onclick="loadSecurePage()">Launch</button>
     </div>
 
+    <!-- The viewing window -->
     <iframe id="viewer-frame" src=""></iframe>
 
     <script>
-        function executeRoute() {
+        async function loadSecurePage() {
             let input = document.getElementById('url-input').value.trim();
             const iframe = document.getElementById('viewer-frame');
 
             if (!input) return;
 
-            // Route search terms through an iframe-compatible search string
+            // 1. Process basic search phrases smoothly
             if (!input.includes('.') || input.includes(' ')) {
                 input = 'https://duckduckgo.com' + encodeURIComponent(input);
             } else if (!/^https?:\/\//i.test(input)) {
                 input = 'https://' + input;
             }
 
-            // Fire the targeted location parameter straight into our processing network
-            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(input);
+            try {
+                // 2. Route the website through the public managed CDN proxy to strip CORS and headers instantly
+                const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(input);
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) throw new Error('Network response failure');
+                let htmlText = await response.text();
+
+                // 3. Inject an absolute base path constraint so stylesheets and images load from the target source
+                const parsedUrl = new URL(input);
+                const baseTag = `<base href="${parsedUrl.origin}/">`;
+                
+                // Force the browser to inject the base rule at the very top of the head
+                if (htmlText.includes('<head>')) {
+                    htmlText = htmlText.replace('<head>', '<head>' + baseTag);
+                } else {
+                    htmlText = baseTag + htmlText;
+                }
+
+                // 4. Safely pipe the fully unblocked raw HTML text into the Iframe window
+                const blob = new Blob([htmlText], { type: 'text/html' });
+                iframe.src = URL.createObjectURL(blob);
+
+            } catch (error) {
+                // Fallback direct notice if the remote network fails to stream
+                iframe.srcdoc = `<div style="font-family:sans-serif;padding:20px;color:#333;"><h3>Navigation Failed</h3><p>${error.message}</p></div>`;
+            }
         }
 
+        // Initialize default view cleanly
         window.onload = function() {
-            executeRoute();
+            loadSecurePage();
         };
 
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') { executeRoute(); }
+            if (e.key === 'Enter') { loadSecurePage(); }
         });
     </script>
 </body>
