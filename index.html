@@ -5,54 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Viewer Template</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            background-color: #f0f2f5;
-        }
-        #nav-bar {
-            width: 100%;
-            background-color: #202124;
-            padding: 10px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        #url-input {
-            flex-grow: 1;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            outline: none;
-        }
-        #go-btn {
-            padding: 8px 16px;
-            background-color: #1a73e8;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        #go-btn:hover {
-            background-color: #1557b0;
-        }
-        #viewer-frame {
-            width: 100%;
-            flex-grow: 1;
-            border: none;
-            background-color: #ffffff;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; font-family: Arial, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #f0f2f5; }
+        #nav-bar { width: 100%; background-color: #202124; padding: 10px; display: flex; gap: 10px; align-items: center; }
+        #url-input { flex-grow: 1; padding: 8px 12px; border: none; border-radius: 4px; font-size: 14px; outline: none; }
+        #go-btn { padding: 8px 16px; background-color: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #go-btn:hover { background-color: #1557b0; }
+        #viewer-frame { width: 100%; flex-grow: 1; border: none; background-color: #ffffff; }
     </style>
 </head>
 <body>
@@ -62,7 +21,7 @@
         <button id="go-btn" onclick="loadUrl()">Load</button>
     </div>
 
-    <iframe id="viewer-frame" src="https://example.com"></iframe>
+    <iframe id="viewer-frame" src=""></iframe>
 
     <script>
         function loadUrl() {
@@ -71,21 +30,23 @@
 
             if (!input) return;
 
-            let finalUrl = input;
-            // Ensure the input has a protocol, otherwise prepend https://
-            if (!/^https?:\/\//i.test(finalUrl)) {
-                finalUrl = 'https://' + finalUrl;
+            let targetUrl = input;
+            // Ensure protocol is attached
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = 'https://' + targetUrl;
             }
 
-            // Update the iframe source
-            iframe.src = finalUrl;
+            // Route the target URL through your backend proxy endpoint
+            iframe.src = window.location.origin + '/proxy?url=' + encodeURIComponent(targetUrl);
         }
 
-        // Allow pressing 'Enter' in the input box to trigger the load
+        // Initialize with default page on load
+        window.onload = function() {
+            loadUrl();
+        };
+
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                loadUrl();
-            }
+            if (e.key === 'Enter') { loadUrl(); }
         });
     </script>
 </body>
