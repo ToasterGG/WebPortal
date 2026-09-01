@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web View Manager</title>
+    <title>Universal Web View Manager + Diagnostics</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; font-family: system-ui, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #121214; }
@@ -12,42 +12,144 @@
         #url-input:focus { border-color: #007acc; }
         #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
         #go-btn:hover { background-color: #005999; }
-        #viewer-frame { width: 100%; flex-grow: 1; border: none; background-color: white; }
+        
+        /* Container layout for streaming layers */
+        #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #000; }
+        
+        /* The dynamic read-only diagnostic terminal */
+        #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #0c0c0d; color: #00ff66; font-family: 'Courier New', Courier, monospace; padding: 20px; overflow-y: auto; font-size: 13px; line-height: 1.5; z-index: 100; display: block; }
+        .log-line { margin-bottom: 4px; }
+        .log-error { color: #ff3333; font-weight: bold; }
+        .log-warn { color: #ffcc00; }
+        .log-success { color: #33ccff; }
+        
+        #viewer-frame { width: 100%; height: 100%; border: none; background-color: white; display: none; }
     </style>
 </head>
 <body>
 
     <div id="nav-bar">
         <input type="text" id="url-input" placeholder="Type a search query or a valid link address..." value="https://duckduckgo.com">
-        <button id="go-btn" onclick="executeRoute()">Launch</button>
+        <button id="go-btn" onclick="executeRouteWithDiagnostics()">Launch</button>
     </div>
 
-    <iframe id="viewer-frame" src=""></iframe>
+    <div id="display-container">
+        <!-- Diagnostic Terminal View -->
+        <div id="terminal-overlay"></div>
+        <!-- Target Webframe -->
+        <iframe id="viewer-frame" src=""></iframe>
+    </div>
 
     <script>
-        function executeRoute() {
+        let startTime = 0;
+        let stopwatchInterval = null;
+
+        function logToTerminal(message, type = 'info') {
+            const terminal = document.getElementById('terminal-overlay');
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            
+            if (type === 'error') line.className += ' log-error';
+            if (type === 'warn') line.className += ' log-warn';
+            if (type === 'success') line.className += ' log-success';
+
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
+            line.innerText = `[${timestamp}] ${message}`;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to latest updates
+        }
+
+        async function executeRouteWithDiagnostics() {
             let input = document.getElementById('url-input').value.trim();
             const iframe = document.getElementById('viewer-frame');
+            const terminal = document.getElementById('terminal-overlay');
 
             if (!input) return;
 
-            // Automatically clean bare-word searches into an iframe-compatible search string
+            // Reset UI States
+            terminal.innerHTML = '';
+            terminal.style.display = 'block';
+            iframe.style.display = 'none';
+
+            logToTerminal('Initializing diagnostic network pipeline...', 'info');
+
+            // Format bare keywords into secure search patterns
             if (!input.includes('.') || input.includes(' ')) {
+                logToTerminal(`Input string recognized as search query. Re-mapping to search mirror format...`, 'warn');
                 input = 'https://duckduckgo.com?q=' + encodeURIComponent(input);
             } else if (!/^https?:\/\//i.test(input)) {
                 input = 'https://' + input;
             }
 
-            // Route everything through the updated proxy pipeline endpoint
-            iframe.src = window.location.origin + '/proxy?url=' + encodeURIComponent(input);
+            logToTerminal(`Target destination locked: ${input}`, 'info');
+            const targetProxyEndpoint = window.location.origin + '/proxy?url=' + encodeURIComponent(input);
+            
+            logToTerminal(`Connecting through your Render instance gate: ${window.location.origin}`, 'info');
+            logToTerminal(`Starting backend network handshake...`, 'info');
+
+            // Start Stopwatch Tracking
+            startTime = performance.now();
+            if (stopwatchInterval) clearInterval(stopwatchInterval);
+            
+            stopwatchInterval = setInterval(() => {
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+                // Dynamically update terminal line to prevent flooding
+                let timerLine = document.getElementById('stopwatch-line');
+                if (!timerLine) {
+                    timerLine = document.createElement('div');
+                    timerLine.id = 'stopwatch-line';
+                    timerLine.className = 'log-line log-warn';
+                    terminal.appendChild(timerLine);
+                }
+                timerLine.innerText = `[STOPWATCH] Time Elapsed: ${elapsed}s (Waiting on Render container response...)`;
+            }, 100);
+
+            try {
+                // Background inspect the content structure before swapping display frames
+                const testFetch = await fetch(targetProxyEndpoint);
+                clearInterval(stopwatchInterval);
+                const totalDuration = ((performance.now() - startTime) / 1000).toFixed(2);
+
+                logToTerminal(`Handshake Complete! Total Connection Duration: ${totalDuration}s`, 'success');
+                logToTerminal(`HTTP Status Code Returned: ${testFetch.status} ${testFetch.statusText}`, testFetch.ok ? 'success' : 'error');
+
+                if (!testFetch.ok) {
+                    throw new Error(`The Render backend returned an error state (${testFetch.status}). Check your Render service application logs.`);
+                }
+
+                logToTerminal(`Analyzing data packets... Content-Type: ${testFetch.headers.get('content-type')}`, 'info');
+                logToTerminal(`Dismantling anti-framing blocks, parsing HTML trees, injecting absolute base contexts...`, 'success');
+                logToTerminal(`Finalizing frame pipeline attachment. Rendering interface now...`, 'info');
+
+                // Load parsed data directly into the frame asset engine
+                iframe.src = targetProxyEndpoint;
+
+                // Handle final iframe load transition
+                iframe.onload = function() {
+                    logToTerminal(`All elements compiled successfully. Swapping layers.`, 'success');
+                    setTimeout(() => {
+                        terminal.style.display = 'none';
+                        iframe.style.display = 'block';
+                    }, 500);
+                };
+
+            } catch (err) {
+                clearInterval(stopwatchInterval);
+                logToTerminal(`!!! CRITICAL CONNECTION ERROR !!!`, 'error');
+                logToTerminal(`Error Detail: ${err.message}`, 'error');
+                logToTerminal(`Possible Causes:`, 'error');
+                logToTerminal(` 1. Render App Cold Start: If the app was asleep, it may take 40-60s to fire up. Try launching again.`, 'warn');
+                logToTerminal(` 2. Cross-Origin (CORS) Block: The target site may be dropping requests hitting your proxy endpoint.`, 'warn');
+                logToTerminal(` 3. Invalid SSL/TLS handshake from destination site.`, 'warn');
+            }
         }
 
         window.onload = function() {
-            executeRoute();
+            executeRouteWithDiagnostics();
         };
 
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') { executeRoute(); }
+            if (e.key === 'Enter') { executeRouteWithDiagnostics(); }
         });
     </script>
 </body>
