@@ -1,1 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Viewer Template</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f2f5;
+        }
+        #nav-bar {
+            width: 100%;
+            background-color: #202124;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #url-input {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+        }
+        #go-btn {
+            padding: 8px 16px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #go-btn:hover {
+            background-color: #1557b0;
+        }
+        #viewer-frame {
+            width: 100%;
+            flex-grow: 1;
+            border: none;
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
 
+    <div id="nav-bar">
+        <input type="text" id="url-input" placeholder="Enter a URL (e.g., https://example.com)..." value="https://example.com">
+        <button id="go-btn" onclick="loadUrl()">Load</button>
+    </div>
+
+    <iframe id="viewer-frame" src="https://example.com"></iframe>
+
+    <script>
+        function loadUrl() {
+            const input = document.getElementById('url-input').value.trim();
+            const iframe = document.getElementById('viewer-frame');
+
+            if (!input) return;
+
+            let finalUrl = input;
+            // Ensure the input has a protocol, otherwise prepend https://
+            if (!/^https?:\/\//i.test(finalUrl)) {
+                finalUrl = 'https://' + finalUrl;
+            }
+
+            // Update the iframe source
+            iframe.src = finalUrl;
+        }
+
+        // Allow pressing 'Enter' in the input box to trigger the load
+        document.getElementById('url-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                loadUrl();
+            }
+        });
+    </script>
+</body>
+</html>
