@@ -19,7 +19,7 @@
 <body>
 
     <div id="nav-bar">
-        <input type="text" id="url-input" placeholder="Type a search query or URL (e.g., google.com)..." value="google.com">
+        <input type="text" id="url-input" placeholder="Type a search query or URL (e.g., bing.com)..." value="://duckduckgo.com">
         <button id="go-btn" onclick="processSecureUrl()">Navigate</button>
     </div>
 
@@ -34,25 +34,22 @@
 
             if (!input) return;
 
-            // Treat plain wording as a search query redirected through an open text mirror
+            // Handle clean search requests using DuckDuckGo's iframe-friendly HTML view
             if (!input.includes('.') || input.includes(' ')) {
-                input = 'https://google.com' + encodeURIComponent(input);
+                iframe.src = 'https://html.://duckduckgo.com/?q=' + encodeURIComponent(input);
+                return;
             }
 
-            // Standardise protocol formatting
+            // Standardize protocol formatting
             if (!/^https?:\/\//i.test(input)) {
                 input = 'https://' + input;
             }
 
-            // Use an open gateway utility to strip headers client-side
-            // This prevents Google's origin from seeing the iframe parent and rejecting the handshake
-            const cleanGateway = 'https://images' + Math.floor(Math.random() * 100) + '://googleusercontent.com';
-            
-            if (input.includes('google.com')) {
-                // Route Google queries through an open-container gateway to resolve connectivity
-                iframe.src = cleanGateway + encodeURIComponent(input);
+            // Directly intercept iframe-friendly sites, otherwise use your Render proxy engine
+            if (input.includes('duckduckgo.com') || input.includes('bing.com')) {
+                iframe.src = input;
             } else {
-                // Route other targets through your backend Render processing pipeline
+                // Route regular websites through your Node backend to strip security headers
                 iframe.src = window.location.origin + '/proxy?url=' + encodeURIComponent(input);
             }
         }
