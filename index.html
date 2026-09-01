@@ -3,153 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web View Manager + Diagnostics</title>
+    <title>Enterprise Network Application Manager</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; font-family: system-ui, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #121214; }
-        #nav-bar { width: 100%; background-color: #1e1e24; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #2d2d35; }
-        #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #3e3e4a; border-radius: 6px; font-size: 14px; background-color: #1a1a1f; color: #fff; outline: none; }
+        body, html { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #1a1a1c; color: #333; }
+        #nav-bar { width: 100%; background-color: #242428; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #323238; }
+        #url-input { flex-grow: 1; padding: 8px 12px; border: 1px solid #45454e; border-radius: 4px; font-size: 14px; background-color: #1c1c1e; color: #fff; outline: none; }
         #url-input:focus { border-color: #007acc; }
-        #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        #go-btn { padding: 8px 20px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; }
         #go-btn:hover { background-color: #005999; }
         
-        /* Container layout for streaming layers */
-        #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #000; }
+        #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #ffffff; }
         
-        /* The dynamic read-only diagnostic terminal */
-        #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #0c0c0d; color: #00ff66; font-family: 'Courier New', Courier, monospace; padding: 20px; overflow-y: auto; font-size: 13px; line-height: 1.5; z-index: 100; display: block; }
-        .log-line { margin-bottom: 4px; }
-        .log-error { color: #ff3333; font-weight: bold; }
-        .log-warn { color: #ffcc00; }
-        .log-success { color: #33ccff; }
+        #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #111112; color: #d4d4d6; font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace; padding: 24px; overflow-y: auto; font-size: 13px; line-height: 1.6; z-index: 100; display: block; }
+        .log-line { margin-bottom: 6px; border-left: 3px solid #007acc; padding-left: 10px; }
+        .log-error { border-left-color: #f85149; color: #f85149; font-weight: 500; background-color: rgba(248, 81, 73, 0.05); padding: 6px 10px; border-radius: 0 4px 4px 0; }
+        .log-warn { border-left-color: #d29922; color: #d29922; }
+        .log-success { border-left-color: #58a6ff; color: #58a6ff; }
         
-        #viewer-frame { width: 100%; height: 100%; border: none; background-color: white; display: none; }
+        #viewer-frame { width: 100%; height: 100%; border: none; background-color: #ffffff; display: none; }
     </style>
 </head>
 <body>
 
     <div id="nav-bar">
-        <input type="text" id="url-input" placeholder="Type a search query or a valid link address..." value="https://duckduckgo.com">
-        <button id="go-btn" onclick="executeRouteWithDiagnostics()">Launch</button>
+        <input type="text" id="url-input" placeholder="Enter target application URI..." value="https://duckduckgo.com">
+        <button id="go-btn" onclick="executeSystemNavigation()">Execute Route</button>
     </div>
 
     <div id="display-container">
-        <!-- Diagnostic Terminal View -->
         <div id="terminal-overlay"></div>
-        <!-- Target Webframe -->
         <iframe id="viewer-frame" src=""></iframe>
     </div>
 
     <script>
-        let startTime = 0;
-        let stopwatchInterval = null;
+        let initTimestamp = 0;
+        let diagnosticInterval = null;
 
-        function logToTerminal(message, type = 'info') {
-            const terminal = document.getElementById('terminal-overlay');
-            const line = document.createElement('div');
-            line.className = 'log-line';
+        function appendSystemLog(message, securityLevel = 'info') {
+            const logContainer = document.getElementById('terminal-overlay');
+            const logElement = document.createElement('div');
+            logElement.className = 'log-line';
             
-            if (type === 'error') line.className += ' log-error';
-            if (type === 'warn') line.className += ' log-warn';
-            if (type === 'success') line.className += ' log-success';
+            if (securityLevel === 'error') logElement.className += ' log-error';
+            if (securityLevel === 'warn') logElement.className += ' log-warn';
+            if (securityLevel === 'success') logElement.className += ' log-success';
 
-            const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
-            line.innerText = `[${timestamp}] ${message}`;
-            terminal.appendChild(line);
-            terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to latest updates
+            const localTime = new Date().toLocaleTimeString();
+            logElement.innerText = `[${localTime}] [SYS_${securityLevel.toUpperCase()}] ${message}`;
+            logContainer.appendChild(logElement);
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        async function executeRouteWithDiagnostics() {
-            let input = document.getElementById('url-input').value.trim();
+        async function executeSystemNavigation() {
+            let uriInput = document.getElementById('url-input').value.trim();
             const iframe = document.getElementById('viewer-frame');
             const terminal = document.getElementById('terminal-overlay');
 
-            if (!input) return;
+            if (!uriInput) return;
 
-            // Reset UI States
             terminal.innerHTML = '';
             terminal.style.display = 'block';
             iframe.style.display = 'none';
 
-            logToTerminal('Initializing diagnostic network pipeline...', 'info');
+            appendSystemLog('Initializing connection handshake protocol...', 'info');
 
-            // Format bare keywords into secure search patterns
-            if (!input.includes('.') || input.includes(' ')) {
-                logToTerminal(`Input string recognized as search query. Re-mapping to search mirror format...`, 'warn');
-                input = 'https://duckduckgo.com?q=' + encodeURIComponent(input);
-            } else if (!/^https?:\/\//i.test(input)) {
-                input = 'https://' + input;
+            if (!uriInput.includes('.') || uriInput.includes(' ')) {
+                appendSystemLog(`Unstructured syntax detected. Normalizing query format via secure search index wrapper...`, 'warn');
+                uriInput = 'https://duckduckgo.com?q=' + encodeURIComponent(uriInput);
+            } else if (!/^https?:\/\//i.test(uriInput)) {
+                uriInput = 'https://' + uriInput;
             }
 
-            logToTerminal(`Target destination locked: ${input}`, 'info');
-            const targetProxyEndpoint = window.location.origin + '/proxy?url=' + encodeURIComponent(input);
+            appendSystemLog(`Target URI verified: ${uriInput}`, 'info');
             
-            logToTerminal(`Connecting through your Render instance gate: ${window.location.origin}`, 'info');
-            logToTerminal(`Starting backend network handshake...`, 'info');
-
-            // Start Stopwatch Tracking
-            startTime = performance.now();
-            if (stopwatchInterval) clearInterval(stopwatchInterval);
+            initTimestamp = performance.now();
+            if (diagnosticInterval) clearInterval(diagnosticInterval);
             
-            stopwatchInterval = setInterval(() => {
-                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-                // Dynamically update terminal line to prevent flooding
-                let timerLine = document.getElementById('stopwatch-line');
-                if (!timerLine) {
-                    timerLine = document.createElement('div');
-                    timerLine.id = 'stopwatch-line';
-                    timerLine.className = 'log-line log-warn';
-                    terminal.appendChild(timerLine);
+            diagnosticInterval = setInterval(() => {
+                const totalElapsedSeconds = ((performance.now() - initTimestamp) / 1000).toFixed(2);
+                let durationElement = document.getElementById('performance-timer-node');
+                if (!durationElement) {
+                    durationElement = document.createElement('div');
+                    durationElement.id = 'performance-timer-node';
+                    durationElement.className = 'log-line log-warn';
+                    terminal.appendChild(durationElement);
                 }
-                timerLine.innerText = `[STOPWATCH] Time Elapsed: ${elapsed}s (Waiting on Render container response...)`;
+                durationElement.innerText = `[LATENCY_MONITOR] Current execution time: ${totalElapsedSeconds}s (Awaiting microservice response packet from host environment...)`;
             }, 100);
 
             try {
-                // Background inspect the content structure before swapping display frames
-                const testFetch = await fetch(targetProxyEndpoint);
-                clearInterval(stopwatchInterval);
-                const totalDuration = ((performance.now() - startTime) / 1000).toFixed(2);
+                appendSystemLog('Establishing telemetry tunnel with backend asset-rewriting framework...', 'info');
+                
+                const sessionResponse = await fetch(window.location.origin + '/rh/newsession');
+                if (!sessionResponse.ok) throw new Error(`HTTP transaction failed with status ${sessionResponse.status}. Unable to allocate gateway session context.`);
+                const sessionId = await sessionResponse.text();
+                
+                clearInterval(diagnosticInterval);
+                const finalLatency = ((performance.now() - initTimestamp) / 1000).toFixed(2);
 
-                logToTerminal(`Handshake Complete! Total Connection Duration: ${totalDuration}s`, 'success');
-                logToTerminal(`HTTP Status Code Returned: ${testFetch.status} ${testFetch.statusText}`, testFetch.ok ? 'success' : 'error');
+                appendSystemLog(`Tunnel handshake established. Session context successfully verified: ${sessionId}`, 'success');
+                appendSystemLog(`Compiling translated absolute cross-origin path schemas...`, 'info');
 
-                if (!testFetch.ok) {
-                    throw new Error(`The Render backend returned an error state (${testFetch.status}). Check your Render service application logs.`);
-                }
+                const structuredProxyUrl = window.location.origin + '/rh/' + sessionId + '/' + uriInput;
 
-                logToTerminal(`Analyzing data packets... Content-Type: ${testFetch.headers.get('content-type')}`, 'info');
-                logToTerminal(`Dismantling anti-framing blocks, parsing HTML trees, injecting absolute base contexts...`, 'success');
-                logToTerminal(`Finalizing frame pipeline attachment. Rendering interface now...`, 'info');
+                iframe.src = structuredProxyUrl;
 
-                // Load parsed data directly into the frame asset engine
-                iframe.src = targetProxyEndpoint;
-
-                // Handle final iframe load transition
                 iframe.onload = function() {
-                    logToTerminal(`All elements compiled successfully. Swapping layers.`, 'success');
+                    appendSystemLog(`DOM elements fully parsed and initialized. Swapping views to targeted network layout.`, 'success');
                     setTimeout(() => {
                         terminal.style.display = 'none';
                         iframe.style.display = 'block';
-                    }, 500);
+                    }, 400);
                 };
 
-            } catch (err) {
-                clearInterval(stopwatchInterval);
-                logToTerminal(`!!! CRITICAL CONNECTION ERROR !!!`, 'error');
-                logToTerminal(`Error Detail: ${err.message}`, 'error');
-                logToTerminal(`Possible Causes:`, 'error');
-                logToTerminal(` 1. Render App Cold Start: If the app was asleep, it may take 40-60s to fire up. Try launching again.`, 'warn');
-                logToTerminal(` 2. Cross-Origin (CORS) Block: The target site may be dropping requests hitting your proxy endpoint.`, 'warn');
-                logToTerminal(` 3. Invalid SSL/TLS handshake from destination site.`, 'warn');
+            } catch (systemException) {
+                clearInterval(diagnosticInterval);
+                appendSystemLog(`CRITICAL_INFRASTRUCTURE_FAILURE: Routing handshake terminated prematurely.`, 'error');
+                appendSystemLog(`Diagnostics: ${systemException.message}`, 'error');
             }
         }
 
         window.onload = function() {
-            executeRouteWithDiagnostics();
+            executeSystemNavigation();
         };
 
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') { executeRouteWithDiagnostics(); }
+            if (e.key === 'Enter') { executeSystemNavigation(); }
         });
     </script>
 </body>
