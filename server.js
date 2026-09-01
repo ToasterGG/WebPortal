@@ -1,21 +1,25 @@
 const express = require('express');
 const path = require('path');
-const Rammerhead = require('rammerhead');
+// FIXED: Accessing Rammerhead's specific server module export pattern
+const RammerheadServer = require('rammerhead/src/server/RammerheadServer');
 const app = express();
 
-const PORT = process.env.PORT || 8080;
+// Render requires web services to bind to port 10000 by default
+const PORT = process.env.PORT || 10000;
 
 app.use(express.static(__dirname));
 
-// Initialize enterprise rewrite engine
-const rh = new Rammerhead({
+// Initialize enterprise rewrite engine with correct constructor assignment
+const rh = new RammerheadServer({
     bindingAddress: '0.0.0.0',
     port: PORT,
     prefix: '/rh/',
     logger: {
         info: () => {},
         error: (msg) => console.error(`[SYS_REWRITE_ERR] ${msg}`)
-    }
+    },
+    // Enforce basic structural routing variables
+    diskCache: false
 });
 
 // Intercept routing directives via Rammerhead middleware layers
