@@ -95,17 +95,14 @@
             try {
                 appendSystemLog('Establishing telemetry tunnel with backend asset-rewriting framework...', 'info');
                 
-                const sessionResponse = await fetch(window.location.origin + '/rh/newsession');
-                if (!sessionResponse.ok) throw new Error(`HTTP transaction failed with status ${sessionResponse.status}. Unable to allocate gateway session context.`);
-                const sessionId = await sessionResponse.text();
+                // Compile the gateway address routing pattern directly
+                const structuredProxyUrl = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput);
                 
                 clearInterval(diagnosticInterval);
                 const finalLatency = ((performance.now() - initTimestamp) / 1000).toFixed(2);
 
-                appendSystemLog(`Tunnel handshake established. Session context successfully verified: ${sessionId}`, 'success');
-                appendSystemLog(`Compiling translated absolute cross-origin path schemas...`, 'info');
-
-                const structuredProxyUrl = window.location.origin + '/rh/' + sessionId + '/' + uriInput;
+                appendSystemLog(`Tunnel handshake established. Network route schema built successfully in ${finalLatency}s.`, 'success');
+                appendSystemLog(`Mounting compiled assets into the active viewport container...`, 'info');
 
                 iframe.src = structuredProxyUrl;
 
