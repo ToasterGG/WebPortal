@@ -1,13 +1,14 @@
 {
-  "name": "universal-proxy-core",
+  "name": "enterprise-proxy-core",
   "version": "1.0.0",
-  "description": "Comprehensive network interception framework for asset translation",
+  "description": "Enterprise-grade asset translation and network infrastructure gateway",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "rammerhead": "^1.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
