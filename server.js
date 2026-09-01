@@ -5,8 +5,8 @@ const app = express();
 // Use the port provided by the environment (e.g., Render) or default to 8080 locally
 const PORT = process.env.PORT || 8080;
 
-// Serve static files (like index.html) from the root directory
-app.use(express.static(__path));
+// FIXED: Changed __path to __dirname
+app.use(express.static(__dirname));
 
 // Serve the index.html file at the root URL
 app.get('/', (req, res) => {
