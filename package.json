@@ -1,7 +1,7 @@
 {
-  "name": "node-iframe-viewer",
+  "name": "universal-proxy-core",
   "version": "1.0.0",
-  "description": "A basic Node.js Express server to serve an iframe template",
+  "description": "Comprehensive network interception framework for asset translation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
