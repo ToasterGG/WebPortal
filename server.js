@@ -1,24 +1,18 @@
 const express = require('express');
+const path = require('path');
 const https = require('https');
 const http = require('http');
 const app = express();
 
 const PORT = process.env.PORT || 10000;
 
-// Enable cross-origin resource sharing for telemetry requests
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
-    next();
-});
+app.use(express.static(__dirname));
 
 app.get('/gateway', (req, res) => {
     let targetUrl = req.query.url;
-    if (!targetUrl) return res.status(400).send('SYS_ERR: Missing endpoint parameter.');
+    if (!targetUrl) return res.status(400).send('SYS_ERR: Missing destination query parameter.');
 
-    if (targetUrl === 'duckduckgo.com') {
+    if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
 
@@ -30,7 +24,8 @@ app.get('/gateway', (req, res) => {
             method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'identity'
             }
         };
@@ -38,7 +33,6 @@ app.get('/gateway', (req, res) => {
         const proxyReq = client.request(parsedUrl, options, (proxyRes) => {
             res.status(proxyRes.statusCode);
 
-            // Strip anti-framing rules
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -46,13 +40,39 @@ app.get('/gateway', (req, res) => {
                 }
             });
 
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', '*');
+
+            if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+                let redirectPath = proxyRes.headers.location;
+                if (!/^https?:\/\//i.test(redirectPath)) {
+                    redirectPath = parsedUrl.origin + redirectPath;
+                }
+                res.redirect(`/gateway?url=${encodeURIComponent(redirectPath)}`);
+                return;
+            }
+
             if (proxyRes.headers['content-type'] && proxyRes.headers['content-type'].includes('text/html')) {
                 let htmlBuffer = '';
                 proxyRes.on('data', chunk => htmlBuffer += chunk);
                 proxyRes.on('end', () => {
-                    // Inject a base reference point to preserve asset loading paths
-                    const baseTag = `<base href="${parsedUrl.origin}/">`;
-                    let processedHtml = htmlBuffer.includes('<head>') ? htmlBuffer.replace('<head>', '<head>' + baseTag) : baseTag + htmlBuffer;
+                    const baseOrigin = parsedUrl.origin;
+                    const frameworkBaseTag = `<base href="${baseOrigin}/"><script>
+                        window.addEventListener('submit', function(e) {
+                            var targetForm = e.target;
+                            if(targetForm && targetForm.action && !targetForm.action.includes('/gateway')) {
+                                targetForm.action = window.location.origin + '/gateway?url=' + encodeURIComponent(targetForm.action);
+                            }
+                        });
+                    </script>`;
+
+                    let processedHtml = htmlBuffer;
+                    if (processedHtml.includes('<head>')) {
+                        processedHtml = processedHtml.replace('<head>', '<head>' + frameworkBaseTag);
+                    } else {
+                        processedHtml = frameworkBaseTag + processedHtml;
+                    }
                     res.send(processedHtml);
                 });
             } else {
@@ -60,13 +80,15 @@ app.get('/gateway', (req, res) => {
             }
         });
 
-        proxyReq.on('error', (err) => res.status(500).send(`GATEWAY_ERR: ${err.message}`));
+        proxyReq.on('error', (err) => res.status(500).send(`CRITICAL_GATEWAY_ERROR: ${err.message}`));
         proxyReq.end();
     } catch (e) {
-        res.status(400).send('STRUCT_FORMAT_ERR: Invalid layout formatting.');
+        res.status(400).send('STRUCT_FORMAT_ERR: Invalid URL structure.');
     }
 });
 
-app.get('/healthz', (req, res) => res.status(200).send('OK'));
+// Explicit root route mapping to load index.html as a standalone webpage dashboard
+app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
+app.get('/healthz', (req, res) => { res.status(200).send('OK'); });
 
-app.listen(PORT, () => console.log(`[SYS_INIT] Backend pipeline listening on port ${PORT}`));
+app.listen(PORT, () => { console.log(`[SYS_INIT] Standalone dashboard proxy active on port ${PORT}`); });
