@@ -6,11 +6,11 @@
     <title>Universal Web View Manager</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; font-family: system-ui, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #1a1a1e; }
-        #nav-bar { width: 100%; background-color: #252529; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #333; }
-        #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #444; border-radius: 6px; font-size: 14px; background-color: #121214; color: #fff; outline: none; }
+        body, html { width: 100%; height: 100%; font-family: system-ui, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #121214; }
+        #nav-bar { width: 100%; background-color: #1e1e24; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #2d2d35; }
+        #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #3e3e4a; border-radius: 6px; font-size: 14px; background-color: #1a1a1f; color: #fff; outline: none; }
         #url-input:focus { border-color: #007acc; }
-        #go-btn { padding: 10px 20px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
         #go-btn:hover { background-color: #005999; }
         #viewer-frame { width: 100%; flex-grow: 1; border: none; background-color: white; }
     </style>
@@ -18,36 +18,36 @@
 <body>
 
     <div id="nav-bar">
-        <input type="text" id="url-input" placeholder="Type search text or full destination URL..." value="wikipedia.org">
-        <button id="go-btn" onclick="triggerNavigation()">Launch</button>
+        <input type="text" id="url-input" placeholder="Type a search query or a valid link address..." value="https://duckduckgo.com">
+        <button id="go-btn" onclick="executeRoute()">Launch</button>
     </div>
 
     <iframe id="viewer-frame" src=""></iframe>
 
     <script>
-        function triggerNavigation() {
+        function executeRoute() {
             let input = document.getElementById('url-input').value.trim();
             const iframe = document.getElementById('viewer-frame');
 
             if (!input) return;
 
-            // Convert raw query terms into plain DuckDuckGo text parameters
+            // Automatically clean bare-word searches into an iframe-compatible search string
             if (!input.includes('.') || input.includes(' ')) {
-                input = 'https://duckduckgo.com' + encodeURIComponent(input);
+                input = 'https://duckduckgo.com?q=' + encodeURIComponent(input);
             } else if (!/^https?:\/\//i.test(input)) {
                 input = 'https://' + input;
             }
 
-            // Direct iframe source update to use your server proxy pipeline endpoint
+            // Route everything through the updated proxy pipeline endpoint
             iframe.src = window.location.origin + '/proxy?url=' + encodeURIComponent(input);
         }
 
         window.onload = function() {
-            triggerNavigation();
+            executeRoute();
         };
 
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') { triggerNavigation(); }
+            if (e.key === 'Enter') { executeRoute(); }
         });
     </script>
 </body>
