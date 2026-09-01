@@ -12,7 +12,6 @@ app.get('/proxy', (req, res) => {
     let targetUrl = req.query.url;
     if (!targetUrl) return res.status(400).send('Missing target URL');
 
-    // Default to duckduckgo html view if requested generally
     if (targetUrl === 'duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
@@ -26,15 +25,16 @@ app.get('/proxy', (req, res) => {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5'
+                'Accept-Language': 'en-US,en;q=0.5',
+                // FIX: Force the target website to send uncompressed plain text (No gzip/brotli)
+                'Accept-Encoding': 'identity'
             }
         };
 
         const proxyReq = client.request(parsedUrl, options, (proxyRes) => {
-            // Copy status code
             res.status(proxyRes.statusCode);
 
-            // Strip ALL framing protection headers entirely
+            // Strip out anti-framing rules
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (
@@ -47,17 +47,17 @@ app.get('/proxy', (req, res) => {
                 }
             });
 
-            // If the content is HTML, rewrite links so they don't break or escape the frame
+            // Process text/html files to inject absolute path routing
             if (proxyRes.headers['content-type'] && proxyRes.headers['content-type'].includes('text/html')) {
                 let body = '';
                 proxyRes.on('data', chunk => body += chunk);
                 proxyRes.on('end', () => {
-                    // Force forms and links to point back through your proxy URL
-                    const currentProxyBase = `${req.protocol}://${req.get('host')}/proxy?url=`;
                     const baseUrl = parsedUrl.origin;
-
-                    // Basic link replacement trick for relative endpoints
-                    let rewrittenBody = body.replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`);
+                    
+                    // Convert relative assets and paths to absolute links using the target origin
+                    let rewrittenBody = body
+                        .replace(/(href|src|action)="\/(?!\/)/g, `$1="${baseUrl}/`)
+                        .replace(/(href|src|action)=' \/(?!\/)/g, `$1='${baseUrl}/`);
                     
                     res.send(rewrittenBody);
                 });
@@ -85,5 +85,5 @@ app.get('/healthz', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Universal Proxy Core listening on port ${PORT}`);
+    console.log(`Core Hub operational on port ${PORT}`);
 });
