@@ -1,7 +1,7 @@
 {
-  "name": "enterprise-proxy-core",
+  "name": "enterprise-corrosion-core",
   "version": "1.0.0",
-  "description": "Enterprise-grade asset translation and network infrastructure gateway",
+  "description": "Production network request interception architecture",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
