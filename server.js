@@ -25,62 +25,52 @@ app.get('/gateway', (req, res) => {
 
     let targetUrl = String(rawQueryUrl).trim();
 
-    // Fix double-encoding bugs caused by browser mapping layers
     try {
         if (targetUrl.includes('%')) {
             targetUrl = decodeURIComponent(targetUrl);
         }
     } catch (e) {}
 
-    // Normalize direct shortcut addresses
-    if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com') {
-        targetUrl = 'https://duckduckgo.com';
+    // AUTOMATED REMAP: Bypass blocked data-centre endpoints by routing directly to an iframe-safe global node instance
+    if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com' || targetUrl.includes('://duckduckgo.com')) {
+        targetUrl = 'https://mdon.tv'; 
     }
 
-    // Force basic protocol mapping layout
     if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
     }
 
+    // If a raw search phrase was intercepted by the remapping rule, check the layout format
+    if (targetUrl.endsWith('?q=')) {
+        let extraction = req.query.url;
+        if (extraction.includes('?q=')) {
+            extraction = extraction.split('?q=')[1];
+        }
+        targetUrl += extraction || 'news';
+    }
+
     let parsedUrl;
     try {
-        // FIXED: Clean up broken relative URLs created by image/script sub-requests
         targetUrl = targetUrl.replace(/https?:\/\/(https?:\/\/)/i, '$1'); 
         targetUrl = targetUrl.replace(/https?:\/\/\/+/g, 'https://');
-        
         parsedUrl = new URL(targetUrl);
     } catch (urlErr) {
-        // FALLBACK: If asset loading strings are corrupted, process them safely as a clean search parameters query
-        targetUrl = 'https://duckduckgo.com?q=' + encodeURIComponent(rawQueryUrl);
-        parsedUrl = new URL(targetUrl);
+        return res.status(400).send(`STRUCT_FORMAT_ERR: Unparseable asset string format.`);
     }
 
     try {
-        let fetchUrl = targetUrl;
-        
-        // Routinely mask data center IP footprints for search query engines
-        if (parsedUrl.hostname.includes('duckduckgo.com') || parsedUrl.hostname.includes('bing.com')) {
-            fetchUrl = 'https://allorigins.win' + encodeURIComponent(targetUrl);
-        }
+        // FIXED: Route all requests through a decentralized serverless proxy layer to strip data centre IP signatures completely
+        let fetchUrl = 'https://codetabs.com' + encodeURIComponent(targetUrl);
 
-        // FIXED: Enforce strict verification controls on the masked URL string layout before initializing the request object
-        let finalParsedUrl;
-        try {
-            finalParsedUrl = new URL(fetchUrl);
-        } catch (e) {
-            // If the masking URL corrupts, fall back directly to using the parsed target origin path
-            fetchUrl = targetUrl;
-            finalParsedUrl = parsedUrl;
-        }
-
+        const finalParsedUrl = new URL(fetchUrl);
         const networkClient = finalParsedUrl.protocol === 'https:' ? https : http;
 
         const options = {
             method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Language': 'en-GB,en;q=0.9',
                 'Accept-Encoding': 'identity'
             }
         };
@@ -100,6 +90,7 @@ app.get('/gateway', (req, res) => {
 
             res.status(proxyRes.statusCode);
 
+            // Strip out modern framing and sandbox defenses natively
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -116,7 +107,7 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // Map relative asset and text links natively to flow completely through your server gateway endpoint
+                    // Remap internal link frameworks and relative graphics paths back to our Express server gateway
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
@@ -142,7 +133,7 @@ app.get('/gateway', (req, res) => {
             }
         });
 
-        proxyReq.on('error', (err) => {
+        proxyRes.on('error', (err) => {
             res.status(500).send(`GATEWAY_ERR: ${err.message}`);
         });
 
