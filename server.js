@@ -17,32 +17,44 @@ app.use((req, res, next) => {
 });
 
 app.get('/gateway', (req, res) => {
-    let targetUrl = req.query.url;
+    let rawQueryUrl = req.query.url;
 
-    if (!targetUrl) {
+    if (!rawQueryUrl) {
         return res.status(400).send('SYS_ERR: Missing destination parameters.');
     }
 
+    let targetUrl = String(rawQueryUrl).trim();
+
+    // Fix double-encoding bugs caused by browser mapping layers
+    try {
+        if (targetUrl.includes('%')) {
+            targetUrl = decodeURIComponent(targetUrl);
+        }
+    } catch (e) {
+        // Fallback gracefully if decoding fails
+    }
+
+    // Intercept raw shortcodes before running constructors
     if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
 
-    try {
-        // Fix spaces or typos in incoming links dynamically before passing to URL constructor
-        targetUrl = targetUrl.trim();
-        if (!/^https?:\/\//i.test(targetUrl)) {
-            targetUrl = 'https://' + targetUrl;
-        }
+    // Force strict protocol prefix formatting
+    if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+    }
 
-        let parsedUrl;
-        try {
-            parsedUrl = new URL(targetUrl);
-        } catch (urlErr) {
-            // FAIL-SAFE: If a dynamic background script sends a broken relative path, drop out safely
-            return res.status(400).send(`STRUCT_FORMAT_ERR: Unparseable asset string format.`);
-        }
-        
-        // Routinely mask the data center IP signature for known search engine backends
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(targetUrl);
+    } catch (urlErr) {
+        // FAIL-SAFE: If the string is malformed or relative, redirect it to an iframe-safe search query
+        targetUrl = 'https://duckduckgo.com?q=' + encodeURIComponent(rawQueryUrl);
+        parsedUrl = new URL(targetUrl);
+    }
+
+    try {
+        // Route requests through an open delivery mirror to mask Render's data center IP signature
         let fetchUrl = targetUrl;
         if (parsedUrl.hostname.includes('duckduckgo.com') || parsedUrl.hostname.includes('bing.com')) {
             fetchUrl = 'https://allorigins.win' + encodeURIComponent(targetUrl);
@@ -62,11 +74,9 @@ app.get('/gateway', (req, res) => {
         };
 
         const proxyReq = networkClient.request(finalParsedUrl, options, (proxyRes) => {
-            // Forward redirection updates transparently down the line
             if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
                 let redirectPath = proxyRes.headers.location;
                 try {
-                    // Normalize the target redirect location safely
                     if (!/^https?:\/\//i.test(redirectPath)) {
                         redirectPath = parsedUrl.origin + redirectPath;
                     }
@@ -78,7 +88,6 @@ app.get('/gateway', (req, res) => {
 
             res.status(proxyRes.statusCode);
 
-            // Dismantle modern framing defenses and tracking restrictions
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -95,7 +104,7 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // Standardize asset references safely
+                    // Re-route links and paths back through your proxy server cleanly
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
