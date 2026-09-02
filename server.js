@@ -25,41 +25,40 @@ app.get('/gateway', (req, res) => {
 
     let targetUrl = String(rawQueryUrl).trim();
 
+    // 1. FIXED: Clean up potential double-encoding flags before structural checks
     try {
         if (targetUrl.includes('%')) {
             targetUrl = decodeURIComponent(targetUrl);
         }
     } catch (e) {}
 
-    // Reroute block: Point blocked search domains to an iframe-safe global node instance
-    if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com' || targetUrl.includes('://duckduckgo.com')) {
-        targetUrl = 'https://mdon.tv'; 
+    // 2. FIXED: Normalize direct shortcuts without messing up query string arrays
+    if (targetUrl.toLowerCase() === 'duckduckgo.com' || targetUrl.toLowerCase() === 'https://duckduckgo.com') {
+        targetUrl = 'https://duckduckgo.com';
     }
 
+    // Enforce protocol formatting safely
     if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
     }
 
-    // Append fallback query parameters if required
-    if (targetUrl.endsWith('?q=')) {
-        let extraction = req.query.url;
-        if (extraction.includes('?q=')) {
-            extraction = extraction.split('?q=')[1];
-        }
-        targetUrl += extraction || 'news';
-    }
+    // 3. FIXED: Clean double slashes out of the link body safely before URL execution
+    try {
+        const protocolMatch = targetUrl.match(/^(https?:\/\/)/i);
+        const urlBody = targetUrl.replace(/^(https?:\/\/)/i, '');
+        targetUrl = (protocolMatch ? protocolMatch[0] : 'https://') + urlBody.replace(/\/+/g, '/');
+    } catch(e) {}
 
     let parsedUrl;
     try {
-        targetUrl = targetUrl.replace(/https?:\/\/(https?:\/\/)/i, '$1'); 
-        targetUrl = targetUrl.replace(/https?:\/\/\/+/g, 'https://');
         parsedUrl = new URL(targetUrl);
     } catch (urlErr) {
-        return res.status(400).send(`STRUCT_FORMAT_ERR: Unparseable asset string format.`);
+        return res.status(400).send(`STRUCT_FORMAT_ERR: Unparseable asset string format. Received: ${targetUrl}`);
     }
 
     try {
-        let fetchUrl = 'https://codetabs.com' + encodeURIComponent(targetUrl);
+        // 4. FIXED: Implement a clean, stable proxy gateway that doesn't truncate query variables
+        let fetchUrl = 'https://codetabs.com' + encodeURIComponent(parsedUrl.href);
         const finalParsedUrl = new URL(fetchUrl);
         const networkClient = finalParsedUrl.protocol === 'https:' ? https : http;
 
@@ -68,12 +67,13 @@ app.get('/gateway', (req, res) => {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-GB,en;q=0.9',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'identity'
             }
         };
 
         const proxyReq = networkClient.request(finalParsedUrl, options, (proxyRes) => {
+            // Forward redirection loops smoothly
             if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
                 let redirectPath = proxyRes.headers.location;
                 try {
@@ -88,6 +88,7 @@ app.get('/gateway', (req, res) => {
 
             res.status(proxyRes.statusCode);
 
+            // Dismantle framing locks and browser sandboxing rules
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -104,11 +105,13 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
+                    // Absolute address mapper
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/href=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `href="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
 
+                    // Form interception script block
                     const integrationScript = `
                         <base href="${targetBase}/">
                         <script>
@@ -129,7 +132,6 @@ app.get('/gateway', (req, res) => {
             }
         });
 
-        // FIXED: Attached error handling wrapper onto proxyReq instead of proxyRes object scope
         proxyReq.on('error', (err) => {
             res.status(500).send(`GATEWAY_ERR: ${err.message}`);
         });
