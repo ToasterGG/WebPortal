@@ -3,29 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise Network Application Manager</title>
+    <title>Enterprise Network Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #1a1a1c; color: #333; }
-        #nav-bar { width: 100%; background-color: #242428; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #323238; }
+        body, html { width: 100%; height: 100%; font-family: -apple-system, sans-serif; overflow: hidden; display: flex; flex-direction: column; background-color: #111112; color: #fff; }
+        #nav-bar { width: 100%; background-color: #242428; padding: 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #323238; }
         #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #45454e; border-radius: 6px; font-size: 14px; background-color: #1c1c1e; color: #fff; outline: none; }
-        #url-input:focus { border-color: #007acc; }
-        #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-        #go-btn:hover { background-color: #005999; }
-        #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #ffffff; }
-        #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #111112; color: #d4d4d6; font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace; padding: 24px; overflow-y: auto; font-size: 13px; line-height: 1.6; z-index: 100; display: block; }
+        #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #fff; }
+        #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #111112; color: #d4d4d6; font-family: monospace; padding: 24px; overflow-y: auto; font-size: 13px; line-height: 1.6; z-index: 100; }
         .log-line { margin-bottom: 6px; border-left: 3px solid #007acc; padding-left: 10px; }
-        .log-error { border-left-color: #f85149; color: #f85149; font-weight: 500; background-color: rgba(248, 81, 73, 0.05); padding: 6px 10px; border-radius: 0 4px 4px 0; }
         .log-warn { border-left-color: #d29922; color: #d29922; }
         .log-success { border-left-color: #58a6ff; color: #58a6ff; }
-        #viewer-frame { width: 100%; height: 100%; border: none; background-color: #ffffff; display: none; }
+        #viewer-frame { width: 100%; height: 100%; border: none; display: none; background-color: white; }
     </style>
 </head>
 <body>
 
     <div id="nav-bar">
-        <input type="text" id="url-input" placeholder="Enter target application URI..." value="https://duckduckgo.com">
-        <button id="go-btn" onclick="executeSystemNavigation()">Execute Route</button>
+        <input type="text" id="url-input" value="https://duckduckgo.com">
+        <button id="go-btn" onclick="navigateSystem()">Execute Route</button>
     </div>
 
     <div id="display-container">
@@ -34,89 +31,74 @@
     </div>
 
     <script>
-        let initTimestamp = 0;
-        let diagnosticInterval = null;
+        let startTime = 0;
+        let timerInterval = null;
 
-        function appendSystemLog(message, securityLevel = 'info') {
-            const logContainer = document.getElementById('terminal-overlay');
-            const logElement = document.createElement('div');
-            logElement.className = 'log-line';
-            if (securityLevel === 'error') logElement.className += ' log-error';
-            if (securityLevel === 'warn') logElement.className += ' log-warn';
-            if (securityLevel === 'success') logElement.className += ' log-success';
-
-            const localTime = new Date().toLocaleTimeString();
-            logElement.innerText = `[${localTime}] [SYS_${securityLevel.toUpperCase()}] ${message}`;
-            logContainer.appendChild(logElement);
-            logContainer.scrollTop = logContainer.scrollHeight;
+        function appendLog(msg, level = 'info') {
+            const container = document.getElementById('terminal-overlay');
+            const el = document.createElement('div');
+            el.className = 'log-line';
+            if (level === 'warn') el.className += ' log-warn';
+            if (level === 'success') el.className += ' log-success';
+            el.innerText = `[${new Date().toLocaleTimeString()}] [SYS_${level.toUpperCase()}] ${msg}`;
+            container.appendChild(el);
+            container.scrollTop = container.scrollHeight;
         }
 
-        function executeSystemNavigation() {
-            let uriInput = document.getElementById('url-input').value.trim();
+        function navigateSystem() {
+            let input = document.getElementById('url-input').value.trim();
             const iframe = document.getElementById('viewer-frame');
             const terminal = document.getElementById('terminal-overlay');
 
-            if (!uriInput) return;
+            if (!input) return;
 
             terminal.innerHTML = '';
             terminal.style.display = 'block';
             iframe.style.display = 'none';
 
-            appendSystemLog('Initializing connection handshake protocol...', 'info');
+            appendLog('Initializing connection handshake protocol...', 'info');
 
-            if (!uriInput.includes('.') || uriInput.includes(' ')) {
-                appendSystemLog(`Unstructured syntax detected. Normalizing query format via secure search index wrapper...`, 'warn');
-                uriInput = 'https://duckduckgo.com?q=' + encodeURIComponent(uriInput);
-            } else if (!/^https?:\/\//i.test(uriInput)) {
-                uriInput = 'https://' + uriInput;
+            if (!input.includes('.') || input.includes(' ')) {
+                appendLog('Normalizing raw parameter data elements via search index wrapper...', 'warn');
+                input = 'https://duckduckgo.com?q=' + encodeURIComponent(input);
+            } else if (!/^https?:\/\//i.test(input)) {
+                input = 'https://' + input;
             }
 
-            appendSystemLog(`Target URI verified: ${uriInput}`, 'info');
-            appendSystemLog('Establishing telemetry tunnel with backend asset-rewriting framework...', 'info');
+            appendLog(`Target URI verified: ${input}`, 'info');
             
-            initTimestamp = performance.now();
-            if (diagnosticInterval) clearInterval(diagnosticInterval);
-            
-            diagnosticInterval = setInterval(() => {
-                const totalElapsedSeconds = ((performance.now() - initTimestamp) / 1000).toFixed(2);
-                let durationElement = document.getElementById('performance-timer-node');
-                if (!durationElement) {
-                    durationElement = document.createElement('div');
-                    durationElement.id = 'performance-timer-node';
-                    durationElement.className = 'log-line log-warn';
-                    terminal.appendChild(durationElement);
+            startTime = performance.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+                let tNode = document.getElementById('timer-node');
+                if (!tNode) {
+                    tNode = document.createElement('div');
+                    tNode.id = 'timer-node';
+                    tNode.className = 'log-line log-warn';
+                    terminal.appendChild(tNode);
                 }
-                durationElement.innerText = `[LATENCY_MONITOR] Current execution time: ${totalElapsedSeconds}s (Streaming asset packet data from host environment...)`;
+                tNode.innerText = `[LATENCY_MONITOR] Current execution time: ${elapsed}s (Streaming deployment data blocks...)`;
             }, 100);
 
-            const structuredProxyUrl = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput);
-            iframe.src = structuredProxyUrl;
+            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(input);
 
             iframe.onload = function() {
-                clearInterval(diagnosticInterval);
-                const finalLatency = ((performance.now() - initTimestamp) / 1000).toFixed(2);
-                
-                appendSystemLog(`Tunnel handshake established. Network route schema built successfully in ${finalLatency}s.`, 'success');
-                appendSystemLog(`DOM elements fully parsed and initialized. Swapping views to targeted network layout.`, 'success');
-                
+                clearInterval(timerInterval);
+                appendLog('Handshake complete. Swapping views to network layout.', 'success');
                 setTimeout(() => {
                     terminal.style.display = 'none';
                     iframe.style.display = 'block';
                 }, 500);
             };
-
-            iframe.onerror = function() {
-                clearInterval(diagnosticInterval);
-                appendSystemLog(`CRITICAL_INFRASTRUCTURE_FAILURE: Routing handshake terminated prematurely.`, 'error');
-            };
         }
 
         window.onload = function() {
-            executeSystemNavigation();
+            navigateSystem();
         };
 
         document.getElementById('url-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') { executeSystemNavigation(); }
+            if (e.key === 'Enter') navigateSystem();
         });
     </script>
 </body>
