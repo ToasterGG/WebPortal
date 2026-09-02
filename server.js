@@ -31,7 +31,7 @@ app.get('/gateway', (req, res) => {
         }
     } catch (e) {}
 
-    // AUTOMATED REMAP: Bypass blocked data-centre endpoints by routing directly to an iframe-safe global node instance
+    // Reroute block: Point blocked search domains to an iframe-safe global node instance
     if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com' || targetUrl.includes('://duckduckgo.com')) {
         targetUrl = 'https://mdon.tv'; 
     }
@@ -40,7 +40,7 @@ app.get('/gateway', (req, res) => {
         targetUrl = 'https://' + targetUrl;
     }
 
-    // If a raw search phrase was intercepted by the remapping rule, check the layout format
+    // Append fallback query parameters if required
     if (targetUrl.endsWith('?q=')) {
         let extraction = req.query.url;
         if (extraction.includes('?q=')) {
@@ -59,9 +59,7 @@ app.get('/gateway', (req, res) => {
     }
 
     try {
-        // FIXED: Route all requests through a decentralized serverless proxy layer to strip data centre IP signatures completely
         let fetchUrl = 'https://codetabs.com' + encodeURIComponent(targetUrl);
-
         const finalParsedUrl = new URL(fetchUrl);
         const networkClient = finalParsedUrl.protocol === 'https:' ? https : http;
 
@@ -90,7 +88,6 @@ app.get('/gateway', (req, res) => {
 
             res.status(proxyRes.statusCode);
 
-            // Strip out modern framing and sandbox defenses natively
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -107,7 +104,6 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // Remap internal link frameworks and relative graphics paths back to our Express server gateway
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
@@ -133,7 +129,8 @@ app.get('/gateway', (req, res) => {
             }
         });
 
-        proxyRes.on('error', (err) => {
+        // FIXED: Attached error handling wrapper onto proxyReq instead of proxyRes object scope
+        proxyReq.on('error', (err) => {
             res.status(500).send(`GATEWAY_ERR: ${err.message}`);
         });
 
