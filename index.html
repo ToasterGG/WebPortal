@@ -62,7 +62,6 @@
 
             if (!uriInput) return;
 
-            // Reset UI states to bring up the terminal overlay
             terminal.innerHTML = '';
             terminal.style.display = 'block';
             iframe.style.display = 'none';
@@ -82,7 +81,6 @@
             initTimestamp = performance.now();
             if (diagnosticInterval) clearInterval(diagnosticInterval);
             
-            // Start real-time runtime timer tracking
             diagnosticInterval = setInterval(() => {
                 const totalElapsedSeconds = ((performance.now() - initTimestamp) / 1000).toFixed(2);
                 let durationElement = document.getElementById('performance-timer-node');
@@ -95,13 +93,9 @@
                 durationElement.innerText = `[LATENCY_MONITOR] Current execution time: ${totalElapsedSeconds}s (Streaming asset packet data from host environment...)`;
             }, 100);
 
-            // Construct the secure server routing path
             const structuredProxyUrl = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput);
-
-            // Directly inject path configuration into the iframe frame window
             iframe.src = structuredProxyUrl;
 
-            // Trigger layer swap once the frame payload finishes compiling
             iframe.onload = function() {
                 clearInterval(diagnosticInterval);
                 const finalLatency = ((performance.now() - initTimestamp) / 1000).toFixed(2);
@@ -115,14 +109,12 @@
                 }, 500);
             };
 
-            // Error listener to catch cross-origin socket dropouts
             iframe.onerror = function() {
                 clearInterval(diagnosticInterval);
-                appendSystemLog(`CRITICAL_INFRASTRUCTURE_FAILURE: Routing handshake terminated prematurely by peer connection.`, 'error');
+                appendSystemLog(`CRITICAL_INFRASTRUCTURE_FAILURE: Routing handshake terminated prematurely.`, 'error');
             };
         }
 
-        // Auto-run on direct page mount
         window.onload = function() {
             executeSystemNavigation();
         };
