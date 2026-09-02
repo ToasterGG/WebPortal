@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 10000;
 
 app.use(express.static(__dirname));
 
+// Enforce open access control parameters across the server layer
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -25,29 +26,22 @@ app.get('/gateway', (req, res) => {
 
     let targetUrl = String(rawQueryUrl).trim();
 
-    // 1. FIXED: Clean up potential double-encoding flags before structural checks
+    // Fix double-encoding bugs caused by browser framing layers
     try {
         if (targetUrl.includes('%')) {
             targetUrl = decodeURIComponent(targetUrl);
         }
     } catch (e) {}
 
-    // 2. FIXED: Normalize direct shortcuts without messing up query string arrays
+    // Handle direct shortcuts cleanly
     if (targetUrl.toLowerCase() === 'duckduckgo.com' || targetUrl.toLowerCase() === 'https://duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
 
-    // Enforce protocol formatting safely
+    // Force basic protocol mapping layout if missing
     if (!/^https?:\/\//i.test(targetUrl)) {
         targetUrl = 'https://' + targetUrl;
     }
-
-    // 3. FIXED: Clean double slashes out of the link body safely before URL execution
-    try {
-        const protocolMatch = targetUrl.match(/^(https?:\/\/)/i);
-        const urlBody = targetUrl.replace(/^(https?:\/\/)/i, '');
-        targetUrl = (protocolMatch ? protocolMatch[0] : 'https://') + urlBody.replace(/\/+/g, '/');
-    } catch(e) {}
 
     let parsedUrl;
     try {
@@ -57,38 +51,34 @@ app.get('/gateway', (req, res) => {
     }
 
     try {
-        // 4. FIXED: Implement a clean, stable proxy gateway that doesn't truncate query variables
-        let fetchUrl = 'https://codetabs.com' + encodeURIComponent(parsedUrl.href);
-        const finalParsedUrl = new URL(fetchUrl);
-        const networkClient = finalParsedUrl.protocol === 'https:' ? https : http;
+        const networkClient = parsedUrl.protocol === 'https:' ? https : http;
 
         const options = {
             method: 'GET',
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity', // Prevents layout text compression corruption
+                'Host': parsedUrl.hostname
             }
         };
 
-        const proxyReq = networkClient.request(finalParsedUrl, options, (proxyRes) => {
+        const proxyReq = networkClient.request(options, (proxyRes) => {
             // Forward redirection loops smoothly
             if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
                 let redirectPath = proxyRes.headers.location;
-                try {
-                    if (!/^https?:\/\//i.test(redirectPath)) {
-                        redirectPath = parsedUrl.origin + redirectPath;
-                    }
-                    return res.redirect(`/gateway?url=${encodeURIComponent(redirectPath)}`);
-                } catch(e) {
-                    return res.status(500).send('STRUCT_FORMAT_ERR: Faulty server redirection header syntax.');
+                if (!/^https?:\/\//i.test(redirectPath)) {
+                    redirectPath = parsedUrl.origin + redirectPath;
                 }
+                return res.redirect(`/gateway?url=${encodeURIComponent(redirectPath)}`);
             }
 
             res.status(proxyRes.statusCode);
 
-            // Dismantle framing locks and browser sandboxing rules
+            // Strip modern framing locks and browser sandboxing rules
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -103,28 +93,30 @@ app.get('/gateway', (req, res) => {
                     const hostServer = `${req.protocol}://${req.get('host')}`;
                     const targetBase = parsedUrl.origin;
                     
-                    let processedHtml = htmlBuffer;
-
-                    // Absolute address mapper
-                    processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
-                    processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
-                    processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
-                    processedHtml = processedHtml.replace(/href=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `href="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
-
-                    // Form interception script block
+                    // Injected script layer to parse relative links natively inside your browser window
                     const integrationScript = `
                         <base href="${targetBase}/">
                         <script>
+                            // Force all dynamic link clicks to route completely back through your server gateway
+                            document.addEventListener('click', function(e) {
+                                var anchor = e.target.closest('a');
+                                if (anchor && anchor.href && !anchor.href.startsWith('${hostServer}')) {
+                                    e.preventDefault();
+                                    window.location.href = '${hostServer}/gateway?url=' + encodeURIComponent(anchor.href);
+                                }
+                            }, true);
+
+                            // Intercept form submissions (e.g., search button inputs)
                             window.addEventListener('submit', function(e) {
                                 var form = e.target;
                                 if (form && form.action && !form.action.includes('/gateway')) {
                                     form.action = '${hostServer}/gateway?url=' + encodeURIComponent(form.action);
                                 }
-                            });
+                            }, true);
                         </script>
                     `;
 
-                    processedHtml = processedHtml.includes('<head>') ? processedHtml.replace('<head>', '<head>' + integrationScript) : integrationScript + processedHtml;
+                    let processedHtml = htmlBuffer.includes('<head>') ? htmlBuffer.replace('<head>', '<head>' + integrationScript) : integrationScript + htmlBuffer;
                     res.send(processedHtml);
                 });
             } else {
@@ -145,4 +137,4 @@ app.get('/gateway', (req, res) => {
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/healthz', (req, res) => { res.status(200).send('OK'); });
 
-app.listen(PORT, () => console.log(`[SYS_INIT] Secure proxy cluster online on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SYS_INIT] Pure proxy core online on port ${PORT}`));
