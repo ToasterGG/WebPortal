@@ -1,6 +1,6 @@
 const express = require('express');
-const https = require('https');
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const app = express();
 
@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 10000;
 
 app.use(express.static(__dirname));
 
+// Complete, standalone asset processing engine
 app.get('/gateway', (req, res) => {
     let targetUrl = req.query.url;
 
@@ -29,15 +30,14 @@ app.get('/gateway', (req, res) => {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'identity' // Strictly block gzip/brotli compression
+                'Accept-Encoding': 'identity'
             }
         };
 
         const proxyReq = client.request(parsedUrl, options, (proxyRes) => {
-            // Forward original HTTP response codes securely
             res.status(proxyRes.statusCode);
 
-            // Strip out strict cross-origin iframe security rules
+            // Strip modern framing locks and sandboxing permissions
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -45,12 +45,10 @@ app.get('/gateway', (req, res) => {
                 }
             });
 
-            // Enforce open CORS configuration to unblock background media transfers
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', '*');
 
-            // Handle server-side redirects recursively
             if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
                 let redirectPath = proxyRes.headers.location;
                 if (!/^https?:\/\//i.test(redirectPath)) {
@@ -60,7 +58,6 @@ app.get('/gateway', (req, res) => {
                 return;
             }
 
-            // HTML Parsing & Direct Link/Asset Translation Layer
             if (proxyRes.headers['content-type'] && proxyRes.headers['content-type'].includes('text/html')) {
                 let htmlBuffer = '';
                 proxyRes.on('data', chunk => htmlBuffer += chunk);
@@ -70,30 +67,33 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // 1. REWRITE ALL RELATIVE AND ABSOLUTE SRC ATTRIBUTES (FOR IMAGES, ICONS, LAYOUTS)
+                    // Inject background service worker registrar to capture dynamic form submissions natively
+                    const workerInjection = `
+                        <base href="${targetBase}/">
+                        <script>
+                            if ('serviceWorker' in navigator) {
+                                navigator.serviceWorker.register('/sw.js?host=' + encodeURIComponent('${hostServer}') + '&origin=' + encodeURIComponent('${targetBase}'))
+                                .then(function() { console.log('Network interception system live.'); })
+                                .catch(function(err) { console.error('Worker registration failed:', err); });
+                            }
+                        </script>
+                    `;
+
+                    // Handle full asset address mapping
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
-
-                    // 2. REWRITE ALL LINK HREF ENTIRES (SO CLICKS STAY SECURED INSIDE PROXY LAYOUT)
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/href=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `href="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
 
-                    // 3. REWRITE SEARCH AND SYSTEM INPUT FORM SUBMIT PATHS
-                    processedHtml = processedHtml.replace(/action=["']\/([^"']+)["']/g, `action="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
-                    processedHtml = processedHtml.replace(/action=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `action="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
-
-                    // Inject global fallback anchor tag configurations
-                    const baselineTag = `<base href="${targetBase}/">`;
                     if (processedHtml.includes('<head>')) {
-                        processedHtml = processedHtml.replace('<head>', '<head>' + baselineTag);
+                        processedHtml = processedHtml.replace('<head>', '<head>' + workerInjection);
                     } else {
-                        processedHtml = baselineTag + processedHtml;
+                        processedHtml = workerInjection + processedHtml;
                     }
 
                     res.send(processedHtml);
                 });
             } else {
-                // Pass binary formats (Images, PNGs, JPEGs, SVG glyphs) untouched through the server stream
                 proxyRes.pipe(res);
             }
         });
@@ -101,11 +101,11 @@ app.get('/gateway', (req, res) => {
         proxyReq.on('error', (err) => res.status(500).send(`CRITICAL_GATEWAY_ERROR: ${err.message}`));
         proxyReq.end();
     } catch (e) {
-        res.status(400).send('STRUCT_FORMAT_ERR: Invalid transmission target construction.');
+        res.status(400).send('STRUCT_FORMAT_ERR: Invalid request target.');
     }
 });
 
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/healthz', (req, res) => { res.status(200).send('OK'); });
 
-app.listen(PORT, () => console.log(`[SYS_INIT] Autonomous rewriter core active on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SYS_INIT] Interception service operating on port ${PORT}`));
