@@ -11,7 +11,11 @@
         #url-input { flex-grow: 1; padding: 10px 14px; border: 1px solid #45454e; border-radius: 6px; font-size: 14px; background-color: #1c1c1e; color: #fff; outline: none; }
         #url-input:focus { border-color: #007acc; }
         #go-btn { padding: 10px 22px; background-color: #007acc; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        #close-window-btn { padding: 10px 16px; background-color: #323238; color: #ff5555; border: 1px solid #ff5555; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        #close-window-btn:hover { background-color: #ff5555; color: #fff; }
+        
         #display-container { width: 100%; flex-grow: 1; position: relative; background-color: #ffffff; }
+        
         #terminal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #111112; color: #d4d4d6; font-family: Consolas, monospace; padding: 24px; overflow-y: auto; font-size: 13px; line-height: 1.6; z-index: 100; }
         .log-line { margin-bottom: 6px; border-left: 3px solid #007acc; padding-left: 10px; }
         .log-warn { border-left-color: #d29922; color: #d29922; }
@@ -24,6 +28,7 @@
     <div id="nav-bar">
         <input type="text" id="url-input" placeholder="Enter target application URI..." value="https://duckduckgo.com">
         <button id="go-btn" onclick="executeSystemNavigation()">Execute Route</button>
+        <button id="close-window-btn" onclick="window.close()">Terminate Connection</button>
     </div>
 
     <div id="display-container">
@@ -60,7 +65,7 @@
             appendSystemLog('Initializing connection handshake protocol...', 'info');
 
             if (!uriInput.includes('.') || uriInput.includes(' ')) {
-                appendSystemLog(`Unstructured syntax detected. Normalizing query format via secure search index wrapper...`, 'warn');
+                appendSystemLog(`Unstructured syntax detected. Normalizing query format...`, 'warn');
                 uriInput = 'https://duckduckgo.com?q=' + encodeURIComponent(uriInput);
             } else if (!/^https?:\/\//i.test(uriInput)) {
                 uriInput = 'https://' + uriInput;
@@ -83,7 +88,7 @@
                 durationElement.innerText = `[LATENCY_MONITOR] Current execution time: ${totalElapsedSeconds}s (Streaming asset packet data from host environment...)`;
             }, 100);
 
-            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput);
+            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput) + '&_cb=' + Date.now();
 
             iframe.onload = function() {
                 clearInterval(diagnosticInterval);
