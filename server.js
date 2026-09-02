@@ -8,7 +8,6 @@ const PORT = process.env.PORT || 10000;
 
 app.use(express.static(__dirname));
 
-// Enable broad cors validation controls to prevent browser assets from dropping out
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -24,42 +23,42 @@ app.get('/gateway', (req, res) => {
         return res.status(400).send('SYS_ERR: Missing destination parameters.');
     }
 
+    // Force default routing to a highly stable, lightweight search layout
     if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
 
     try {
         const parsedUrl = new URL(targetUrl);
-        const client = parsedUrl.protocol === 'https:' ? https : http;
+        
+        // INTERCEPT SE_BANS: If the request hits blocked search infra, route through an open delivery mirror
+        let fetchUrl = targetUrl;
+        if (parsedUrl.hostname.includes('duckduckgo.com') || parsedUrl.hostname.includes('bing.com')) {
+            // Re-route traffic via an open global formatting proxy to mask the Render data center IP signature
+            fetchUrl = 'https://allorigins.win' + encodeURIComponent(targetUrl);
+        }
+
+        const client = fetchUrl.startsWith('https:') ? https : http;
 
         const options = {
             method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'identity'
             }
         };
 
-        const proxyReq = client.request(parsedUrl, options, (proxyRes) => {
+        const proxyReq = https.request(fetchUrl, options, (proxyRes) => {
             res.status(proxyRes.statusCode);
 
-            // Strip framing boundaries 
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
                     res.setHeader(key, proxyRes.headers[key]);
                 }
             });
-
-            if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
-                let redirectPath = proxyRes.headers.location;
-                if (!/^https?:\/\//i.test(redirectPath)) {
-                    redirectPath = parsedUrl.origin + redirectPath;
-                }
-                res.redirect(`/gateway?url=${encodeURIComponent(redirectPath)}`);
-                return;
-            }
 
             if (proxyRes.headers['content-type'] && proxyRes.headers['content-type'].includes('text/html')) {
                 let htmlBuffer = '';
@@ -70,13 +69,12 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // Absolute base rewriter layout rules
+                    // Standardize asset endpoints 
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/href=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `href="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
 
-                    // Form interceptor
                     const integrationScript = `
                         <base href="${targetBase}/">
                         <script>
@@ -100,7 +98,7 @@ app.get('/gateway', (req, res) => {
         proxyReq.on('error', (err) => res.status(500).send(`GATEWAY_ERR: ${err.message}`));
         proxyReq.end();
     } catch (e) {
-        res.status(400).send('STRUCT_FORMAT_ERR: Invalid target format.');
+        res.status(400).send('STRUCT_FORMAT_ERR: Invalid target formatting.');
     }
 });
 
