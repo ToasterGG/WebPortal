@@ -22,7 +22,6 @@
 <body>
 
     <div id="nav-bar">
-        <!-- FIXED: Default value mapped cleanly to direct path to bypass encoding loops -->
         <input type="text" id="url-input" placeholder="Enter target application URI..." value="https://duckduckgo.com">
         <button id="go-btn" onclick="executeSystemNavigation()">Execute Route</button>
     </div>
@@ -61,7 +60,7 @@
             appendSystemLog('Initializing connection handshake protocol...', 'info');
 
             if (!uriInput.includes('.') || uriInput.includes(' ')) {
-                appendSystemLog(`Unstructured syntax detected. Normalizing query format...`, 'warn');
+                appendSystemLog(`Unstructured syntax detected. Normalizing query format via secure search index wrapper...`, 'warn');
                 uriInput = 'https://duckduckgo.com?q=' + encodeURIComponent(uriInput);
             } else if (!/^https?:\/\//i.test(uriInput)) {
                 uriInput = 'https://' + uriInput;
@@ -84,8 +83,7 @@
                 durationElement.innerText = `[LATENCY_MONITOR] Current execution time: ${totalElapsedSeconds}s (Streaming asset packet data from host environment...)`;
             }, 100);
 
-            // Add a cache-busting flag to prevent your browser from running old code mutations inside the frame
-            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput) + '&_cb=' + Date.now();
+            iframe.src = window.location.origin + '/gateway?url=' + encodeURIComponent(uriInput);
 
             iframe.onload = function() {
                 clearInterval(diagnosticInterval);
