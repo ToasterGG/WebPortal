@@ -23,22 +23,27 @@ app.get('/gateway', (req, res) => {
         return res.status(400).send('SYS_ERR: Missing destination parameters.');
     }
 
-    // Force default routing to a highly stable, lightweight search layout
     if (targetUrl === 'duckduckgo.com' || targetUrl === 'https://duckduckgo.com') {
         targetUrl = 'https://duckduckgo.com';
     }
 
     try {
+        // Enforce basic protocol structure if missing
+        if (!/^https?:\/\//i.test(targetUrl)) {
+            targetUrl = 'https://' + targetUrl;
+        }
+
         const parsedUrl = new URL(targetUrl);
         
-        // INTERCEPT SE_BANS: If the request hits blocked search infra, route through an open delivery mirror
+        // Mask the Render data centre IP by using a high-volume public bridge for search requests
         let fetchUrl = targetUrl;
         if (parsedUrl.hostname.includes('duckduckgo.com') || parsedUrl.hostname.includes('bing.com')) {
-            // Re-route traffic via an open global formatting proxy to mask the Render data center IP signature
             fetchUrl = 'https://allorigins.win' + encodeURIComponent(targetUrl);
         }
 
-        const client = fetchUrl.startsWith('https:') ? https : http;
+        const finalParsedUrl = new URL(fetchUrl);
+        // FIXED: Dynamically match the correct network client (http or https) based on the masked target URL
+        const networkClient = finalParsedUrl.protocol === 'https:' ? https : http;
 
         const options = {
             method: 'GET',
@@ -50,9 +55,10 @@ app.get('/gateway', (req, res) => {
             }
         };
 
-        const proxyReq = https.request(fetchUrl, options, (proxyRes) => {
+        const proxyReq = networkClient.request(finalParsedUrl, options, (proxyRes) => {
             res.status(proxyRes.statusCode);
 
+            // Strip anti-framing and modern sandbox restriction headers
             Object.keys(proxyRes.headers).forEach((key) => {
                 const lowerKey = key.toLowerCase();
                 if (!['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'clear-site-data', 'cross-origin-opener-policy'].includes(lowerKey)) {
@@ -69,12 +75,13 @@ app.get('/gateway', (req, res) => {
                     
                     let processedHtml = htmlBuffer;
 
-                    // Standardize asset endpoints 
+                    // Dynamically map paths to direct traffic entirely through your server
                     processedHtml = processedHtml.replace(/src=["']\/([^"']+)["']/g, `src="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/src=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `src="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
                     processedHtml = processedHtml.replace(/href=["']\/([^"']+)["']/g, `href="${hostServer}/gateway?url=${encodeURIComponent(targetBase)}/$1"`);
                     processedHtml = processedHtml.replace(/href=["'](https?:\/\/[^"']+)["']/g, (match, p1) => `href="${hostServer}/gateway?url=${encodeURIComponent(p1)}"`);
 
+                    // Form interceptor layout logic
                     const integrationScript = `
                         <base href="${targetBase}/">
                         <script>
@@ -95,14 +102,18 @@ app.get('/gateway', (req, res) => {
             }
         });
 
-        proxyReq.on('error', (err) => res.status(500).send(`GATEWAY_ERR: ${err.message}`));
+        proxyReq.on('error', (err) => {
+            res.status(500).send(`GATEWAY_ERR: ${err.message}`);
+        });
+
         proxyReq.end();
     } catch (e) {
-        res.status(400).send('STRUCT_FORMAT_ERR: Invalid target formatting.');
+        // FIXED: Detailed diagnostics printout to terminal if a specific asset format breaks
+        res.status(400).send(`STRUCT_FORMAT_ERR: Invalid target formatting parsing exception. Trace: ${e.message}`);
     }
 });
 
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/healthz', (req, res) => { res.status(200).send('OK'); });
 
-app.listen(PORT, () => console.log(`[SYS_INIT] Proxy cluster responsive on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SYS_INIT] Secure proxy cluster online on port ${PORT}`));
