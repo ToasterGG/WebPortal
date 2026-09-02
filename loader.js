@@ -49,7 +49,7 @@
         background: 'none',
         border: 'none',
         color: '#aaa',
-        cursor: pointer,
+        cursor: 'pointer', // FIXED: Added proper quotation marks to avoid reference exception
         fontSize: '16px'
     });
     
