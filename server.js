@@ -135,4 +135,4 @@ app.get('/gateway', (req, res) => {
 
 app.get('/healthz', (req, res) => { res.status(200).send('OK'); });
 
-app.listen(PORT, () => console.log(`[SYS_INIT] Proxy cluster operational on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SYS_INIT] Proxy core operating natively on port ${PORT}`));
